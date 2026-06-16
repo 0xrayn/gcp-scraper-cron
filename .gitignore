@@ -1,0 +1,13 @@
+# Environment variables — JANGAN di-commit ke GitHub
+.env
+
+# GCP service account key
+key.json
+
+# Go build output
+*.exe
+*.out
+
+# OS
+.DS_Store
+Thumbs.db

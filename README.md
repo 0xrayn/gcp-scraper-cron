@@ -1,143 +1,113 @@
-# 🕷️ GCP Scraper + Cron Job dengan Go
+# gcp-scraper-cron
 
-> Aplikasi scraper data otomatis yang berjalan terjadwal setiap hari di Google Cloud Platform, tanpa perlu server sendiri, tanpa perlu buka laptop — dan **gratis**.
-
----
-
-## 📌 Apa Itu Aplikasi Ini?
-
-Aplikasi ini adalah **scraper otomatis berbasis cloud** yang ditulis dengan bahasa Go. Program ini akan berjalan sendiri setiap hari sesuai jadwal yang kamu tentukan, mengambil data dari internet, lalu mengirimkan hasilnya langsung ke **Telegram** kamu.
-
-Tidak perlu VPS yang nyala 24 jam. Tidak perlu buka laptop. Semua berjalan otomatis di Google Cloud.
+A scheduled web scraper that runs daily on Google Cloud Platform using Cloud Functions and Cloud Scheduler. Results are delivered to Telegram automatically — no server required, no laptop needed.
 
 ---
 
-## 🎯 Tujuan & Kegunaan
+## What it does
 
-Aplikasi ini cocok digunakan untuk:
+The scraper wakes up on a cron schedule, pulls data from the web (exchange rates, prices, news, stock availability — whatever you point it at), formats the results, and sends them to a Telegram bot. When it's done, it shuts down. You pay nothing while it's idle.
 
-| Use Case | Contoh |
-|---|---|
-| 📈 Pantau harga produk | Cek harga laptop di Tokopedia/Shopee tiap pagi, notif kalau turun |
-| 💱 Monitor kurs mata uang | Rekap USD/IDR/EUR/SGD setiap hari jam 07:00 WIB |
-| 📰 Rangkuman berita | Ambil headline berita terbaru dari portal tertentu |
-| 🛒 Cek stok barang | Alert otomatis kalau barang yang habis sudah kembali tersedia |
-| 💼 Monitor lowongan kerja | Scrape job portal, notif kalau ada posisi baru yang sesuai |
-| 📊 Laporan data berkala | Rekap data apapun dari web dan kirim ke tim via Telegram |
-
-Selain itu, project ini juga bagus sebagai **portofolio GitHub** karena menunjukkan kemampuan:
-- Menulis aplikasi Go yang bersih dan terstruktur
-- Deploy ke Google Cloud Platform (Cloud Functions + Cloud Scheduler)
-- Implementasi CI/CD otomatis dengan GitHub Actions
-- Arsitektur serverless yang efisien dan hemat biaya
+Out of the box it scrapes USD/IDR/EUR/SGD exchange rates from a free public API. Swap in any source you want by editing one file.
 
 ---
 
-## 🏗️ Arsitektur Aplikasi
+## Screenshots
+
+**GCP Cloud Functions dashboard**
+![Cloud Functions Dashboard](docs/screenshots/cloud-functions.png)
+
+**Cloud Scheduler job**
+![Cloud Scheduler](docs/screenshots/cloud-scheduler.png)
+
+**Telegram notification result**
+![Telegram Bot Output](docs/screenshots/telegram-output.png)
+
+**GitHub Actions deploy log**
+![GitHub Actions](docs/screenshots/github-actions.png)
+
+> Add your own screenshots to `docs/screenshots/` after deploying.
+
+---
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     GITHUB                              │
-│  Repository ──(push ke main)──► GitHub Actions          │
-│                                      │                  │
-│                                      │ auto deploy      │
-└──────────────────────────────────────┼──────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────┐
-│                  GOOGLE CLOUD PLATFORM                  │
-│                                                         │
-│  Cloud Scheduler                                        │
-│  (cron: tiap hari 07:00 WIB)                           │
-│        │                                                │
-│        │ HTTP GET + Secret Header                       │
-│        ▼                                                │
-│  Cloud Functions Gen2 (Go 1.21)                        │
-│        │                                                │
-│        ├── internal/scraper ──► Ambil data dari web     │
-│        │                                                │
-│        └── internal/notifier ──► Kirim ke Telegram      │
-└─────────────────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                              📱 Telegram Bot
-                         (pesan masuk ke HP kamu)
+GitHub Repository
+      │
+      │  push to main
+      ▼
+GitHub Actions
+      │
+      │  gcloud deploy
+      ▼
+Cloud Functions Gen2 (Go 1.21)      ◄──── Cloud Scheduler (daily cron)
+      │
+      ├── internal/scraper      fetch data from web/API
+      └── internal/notifier     send results to Telegram
+                                        │
+                                        ▼
+                                  Your Telegram
 ```
-
-**Alur kerja singkat:**
-1. Cloud Scheduler "membangunkan" Cloud Function sesuai jadwal cron
-2. Cloud Function menjalankan kode Go yang scrape data dari internet
-3. Hasil scrape diformat dan dikirim ke Telegram bot kamu
-4. Selesai — Cloud Function mati lagi (tidak makan biaya saat idle)
 
 ---
 
-## 💰 Estimasi Biaya GCP (per bulan)
+## Cost
 
-| Service | Penggunaan | Free Tier | Biaya |
+| Service | Usage | Free tier | Cost |
 |---|---|---|---|
-| Cloud Functions Gen2 | 30 invocations/bulan | 2 juta/bulan | **GRATIS** |
-| Cloud Scheduler | 1 job | 3 job gratis | **GRATIS** |
-| Egress network | < 100 KB/hari | 1 GB/bulan | **GRATIS** |
-| Cloud Build (deploy) | ~5 menit/deploy | 120 menit/hari | **GRATIS** |
-| **Total** | | | **~$0/bulan** |
+| Cloud Functions Gen2 | 30 calls/month | 2M calls/month | free |
+| Cloud Scheduler | 1 job | 3 jobs free | free |
+| Egress network | < 1 GB/month | 1 GB/month | free |
+| Cloud Build | ~5 min/deploy | 120 min/day | free |
+| **Total** | | | **$0/month** |
 
-> ⚠️ Tetap aktifkan **Budget Alerts** di GCP Console (set limit $5) agar tidak kaget jika ada penggunaan tidak terduga.
+Set a billing alert at $5 in GCP Console just in case.
 
 ---
 
-## 📁 Struktur Folder
+## Project structure
 
 ```
 gcp-scraper-cron/
-│
-├── function.go                  # Entry point Cloud Function
-│                                # Menerima HTTP request dari Cloud Scheduler
-│
-├── go.mod                       # Dependency Go
-│
+├── function.go                    entry point for Cloud Functions
+├── go.mod
 ├── internal/
 │   ├── scraper/
-│   │   └── scraper.go           # Logika utama scraping data
-│   │                            # Edit file ini untuk ganti/tambah sumber data
-│   │
+│   │   └── scraper.go             scraping logic — edit this to change data source
 │   └── notifier/
-│       └── telegram.go          # Kirim hasil ke Telegram Bot
-│
+│       └── telegram.go            formats and sends Telegram messages
 ├── cmd/
 │   └── deploy/
-│       └── main.go              # Runner lokal — untuk test tanpa deploy ke GCP
-│
+│       └── main.go                local test runner (no deploy needed)
+├── docs/
+│   └── screenshots/               add your screenshots here
 └── .github/
     └── workflows/
-        └── deploy.yml           # CI/CD: auto deploy ke GCP setiap push ke main
+        └── deploy.yml             CI/CD pipeline
 ```
 
 ---
 
-## 🚀 Cara Setup & Deploy (Pertama Kali)
+## Setup
 
-### Prasyarat
+### Prerequisites
 
-- Akun Google Cloud Platform (gratis daftar, ada $300 free credit)
-- Akun GitHub
-- [gcloud CLI](https://cloud.google.com/sdk/docs/install) terinstall di laptop
-- Go 1.21+ terinstall
-- Akun Telegram
+- Google Cloud account (free tier works, comes with $300 credit)
+- GitHub account
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed
+- Go 1.21+
+- Telegram account
 
 ---
 
-### Langkah 1 — Buat Project GCP & Aktifkan API
+### 1. Create a GCP project
 
 ```bash
-# Login ke GCP
 gcloud auth login
+gcloud projects create your-project-id
+gcloud config set project your-project-id
 
-# Buat project baru (ganti nama sesuai keinginan)
-gcloud projects create scraper-project-xxx
-gcloud config set project scraper-project-xxx
-
-# Aktifkan API yang dibutuhkan
 gcloud services enable cloudfunctions.googleapis.com
 gcloud services enable cloudscheduler.googleapis.com
 gcloud services enable cloudbuild.googleapis.com
@@ -146,180 +116,168 @@ gcloud services enable run.googleapis.com
 
 ---
 
-### Langkah 2 — Buat Service Account untuk GitHub Actions
-
-Service Account ini dipakai oleh GitHub Actions agar bisa deploy ke GCP secara otomatis.
+### 2. Create a service account for GitHub Actions
 
 ```bash
-# Buat service account
 gcloud iam service-accounts create github-deployer \
   --display-name="GitHub Actions Deployer"
 
-# Berikan izin deploy Cloud Functions
-gcloud projects add-iam-policy-binding scraper-project-xxx \
-  --member="serviceAccount:github-deployer@scraper-project-xxx.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding your-project-id \
+  --member="serviceAccount:github-deployer@your-project-id.iam.gserviceaccount.com" \
   --role="roles/cloudfunctions.developer"
 
-# Berikan izin kelola Cloud Scheduler
-gcloud projects add-iam-policy-binding scraper-project-xxx \
-  --member="serviceAccount:github-deployer@scraper-project-xxx.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding your-project-id \
+  --member="serviceAccount:github-deployer@your-project-id.iam.gserviceaccount.com" \
   --role="roles/cloudscheduler.admin"
 
-# Berikan izin Cloud Run (dibutuhkan Cloud Functions Gen2)
-gcloud projects add-iam-policy-binding scraper-project-xxx \
-  --member="serviceAccount:github-deployer@scraper-project-xxx.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding your-project-id \
+  --member="serviceAccount:github-deployer@your-project-id.iam.gserviceaccount.com" \
   --role="roles/run.admin"
 
-# Berikan izin impersonate service account
-gcloud projects add-iam-policy-binding scraper-project-xxx \
-  --member="serviceAccount:github-deployer@scraper-project-xxx.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding your-project-id \
+  --member="serviceAccount:github-deployer@your-project-id.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountUser"
 
-# Export key JSON — OUTPUT INI YANG DISIMPAN KE GITHUB SECRETS
+# Export the key — you'll paste this into GitHub Secrets
 gcloud iam service-accounts keys create key.json \
-  --iam-account=github-deployer@scraper-project-xxx.iam.gserviceaccount.com
-
-cat key.json  # copy seluruh isi file ini
+  --iam-account=github-deployer@your-project-id.iam.gserviceaccount.com
 ```
 
 ---
 
-### Langkah 3 — Buat Telegram Bot
+### 3. Create a Telegram bot
 
-1. Buka Telegram, cari **@BotFather**
-2. Kirim perintah `/newbot`
-3. Ikuti instruksi → masukkan nama bot → dapat **TOKEN** (simpan!)
-4. Start bot kamu: cari nama bot di Telegram, klik **Start**
-5. Untuk dapat **CHAT_ID**, buka browser:
+1. Open Telegram and search for **@BotFather**
+2. Send `/newbot` and follow the prompts
+3. Copy the **token** you receive
+4. Send any message to your new bot
+5. Open this URL in a browser to get your chat ID:
    ```
-   https://api.telegram.org/bot<TOKEN_KAMU>/getUpdates
+   https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
    ```
-6. Kirim pesan apapun ke bot kamu dulu, lalu refresh URL di atas
-7. Cari nilai `"chat":{"id": 123456789}` — angka itu adalah **CHAT_ID** kamu
+6. Find `"chat":{"id": 123456789}` — that number is your chat ID
 
 ---
 
-### Langkah 4 — Set GitHub Secrets
+### 4. Add GitHub Secrets
 
-Buka repo GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+Go to your repo on GitHub: **Settings → Secrets and variables → Actions → New repository secret**
 
-Tambahkan 5 secrets berikut:
-
-| Secret Name | Nilai | Keterangan |
-|---|---|---|
-| `GCP_SA_KEY` | Isi seluruh file `key.json` | Kredensial Service Account |
-| `GCP_PROJECT_ID` | `scraper-project-xxx` | ID project GCP kamu |
-| `TELEGRAM_TOKEN` | Token dari BotFather | Untuk kirim pesan |
-| `TELEGRAM_CHAT_ID` | Angka ID dari getUpdates | Target penerima pesan |
-| `SCHEDULER_SECRET` | Password bebas, misal `rahasia123` | Keamanan endpoint Function |
+| Secret | Value |
+|---|---|
+| `GCP_SA_KEY` | Full contents of `key.json` |
+| `GCP_PROJECT_ID` | `your-project-id` |
+| `TELEGRAM_TOKEN` | Token from BotFather |
+| `TELEGRAM_CHAT_ID` | Your chat ID number |
+| `SCHEDULER_SECRET` | Any random string, e.g. `s3cr3t-abc` |
 
 ---
 
-### Langkah 5 — Push ke GitHub → Deploy Otomatis!
+### 5. Push and deploy
 
 ```bash
 git init
 git add .
-git commit -m "feat: initial scraper setup"
+git commit -m "initial commit"
 git branch -M main
-git remote add origin https://github.com/username/gcp-scraper-cron.git
+git remote add origin https://github.com/your-username/gcp-scraper-cron.git
 git push -u origin main
 ```
 
-GitHub Actions akan otomatis:
-1. Menjalankan tests
-2. Deploy Cloud Function ke GCP
-3. Membuat/update Cloud Scheduler job
-
-Cek progress deploy di tab **Actions** di repo GitHub kamu.
+GitHub Actions deploys automatically. Check the **Actions** tab for progress.
 
 ---
 
-## 🖥️ Cara Menjalankan Secara Lokal (Testing)
+## Running locally
 
-### Test scraper langsung
+Install dependencies first:
 
 ```bash
-# Clone repo
-git clone https://github.com/username/gcp-scraper-cron.git
-cd gcp-scraper-cron
-
-# Install dependencies
 go mod tidy
+```
 
-# Jalankan scraper — hasil tampil di terminal
+Copy `.env.example` to `.env` and fill in your values:
+
+```
+TELEGRAM_TOKEN=token_from_botfather
+TELEGRAM_CHAT_ID=your_chat_id
+SCHEDULER_SECRET=any_random_string
+```
+
+Then run:
+
+```bash
 go run ./cmd/deploy
 ```
 
-### Simulasi Cloud Function di lokal
+The app reads `.env` automatically. The `.env` file is listed in `.gitignore` so it will never be committed to GitHub.
 
-```bash
-# Jalankan sebagai HTTP server lokal
-go run github.com/GoogleCloudPlatform/functions-framework-go/funcframework \
-  --target=RunScraper --port=8080
+---
 
-# Di terminal lain, panggil seperti Cloud Scheduler memanggil
-curl http://localhost:8080
+**If you prefer setting env variables manually instead:**
+
+**Windows (CMD):**
+```cmd
+set TELEGRAM_TOKEN=your-token
+set TELEGRAM_CHAT_ID=your-chat-id
+go run ./cmd/deploy
 ```
 
-### Test dengan Telegram (lokal)
+**Windows (PowerShell):**
+```powershell
+$env:TELEGRAM_TOKEN="your-token"
+$env:TELEGRAM_CHAT_ID="your-chat-id"
+go run ./cmd/deploy
+```
 
+**Mac/Linux:**
 ```bash
-# Set env variable dulu
-export TELEGRAM_TOKEN=token_dari_botfather
-export TELEGRAM_CHAT_ID=chat_id_kamu
-
-# Jalankan
+export TELEGRAM_TOKEN=your-token
+export TELEGRAM_CHAT_ID=your-chat-id
 go run ./cmd/deploy
 ```
 
 ---
 
-## ✏️ Cara Menambahkan Scraper Baru
+## Adding a new scraper
 
-Edit file `internal/scraper/scraper.go`:
-
-**1. Tambahkan fungsi scraper baru:**
+Open `internal/scraper/scraper.go` and add a function:
 
 ```go
-// Contoh: scrape harga BBM dari website SPBU
-func scrapeHargaBBM(ctx context.Context) ([]Item, error) {
-    resp, err := http.Get("https://mypertamina.id/harga-bbm")
+func scrapeProductPrice(ctx context.Context) ([]Item, error) {
+    resp, err := http.Get("https://example.com/product/123")
     if err != nil {
         return nil, err
     }
     defer resp.Body.Close()
 
-    // parsing HTML dengan goquery atau string manipulation
-    // ...
+    // parse the response here
 
     return []Item{
         {
-            Title:     "Pertalite",
-            Value:     "Rp 10.000/liter",
-            Source:    "pertamina.com",
+            Title:     "Product Name",
+            Value:     "Rp 1.200.000",
+            Source:    "example.com",
             ScrapedAt: time.Now(),
         },
     }, nil
 }
 ```
 
-**2. Daftarkan di fungsi `Run()`:**
+Then register it in `Run()`:
 
 ```go
 func Run(ctx context.Context) ([]Item, error) {
     var results []Item
 
-    // Scraper yang sudah ada
-    currencyItems, err := scrapeCurrency(ctx)
+    currencyItems, _ := scrapeCurrency(ctx)
     results = append(results, currencyItems...)
 
-    // Tambahkan scraper baru di sini
-    bbmItems, err := scrapeHargaBBM(ctx)
+    priceItems, err := scrapeProductPrice(ctx)
     if err != nil {
-        log.Printf("scraper BBM gagal: %v", err) // log saja, jangan stop semua
+        log.Printf("price scraper failed: %v", err) // log and continue, don't stop everything
     } else {
-        results = append(results, bbmItems...)
+        results = append(results, priceItems...)
     }
 
     return results, nil
@@ -328,47 +286,24 @@ func Run(ctx context.Context) ([]Item, error) {
 
 ---
 
-## ⏰ Mengubah Jadwal Cron
+## Cron schedule
 
-Edit bagian `--schedule` di `.github/workflows/deploy.yml`:
+Edit `--schedule` in `.github/workflows/deploy.yml`:
 
-```yaml
---schedule="0 0 * * *"
-```
-
-| Format Cron | Artinya |
+| Schedule | Runs |
 |---|---|
-| `0 0 * * *` | Setiap hari jam 00:00 UTC (07:00 WIB) |
-| `0 22 * * *` | Setiap hari jam 22:00 UTC (05:00 WIB pagi) |
-| `0 */6 * * *` | Setiap 6 jam sekali |
-| `0 0 * * 1` | Setiap Senin jam 07:00 WIB |
-| `*/30 * * * *` | Setiap 30 menit |
-| `0 0 1 * *` | Setiap tanggal 1 (awal bulan) |
+| `0 0 * * *` | Daily at 07:00 WIB (00:00 UTC) |
+| `0 22 * * *` | Daily at 05:00 WIB (22:00 UTC) |
+| `0 */6 * * *` | Every 6 hours |
+| `0 0 * * 1` | Every Monday |
+| `*/30 * * * *` | Every 30 minutes |
 
-> 💡 GCP Cloud Scheduler menggunakan **UTC**. Indonesia WIB = UTC+7, jadi kurangi 7 jam dari waktu yang kamu inginkan.
+Cloud Scheduler uses UTC. Indonesia WIB is UTC+7, so subtract 7 hours from your target time.
 
 ---
 
-## 🔧 Troubleshooting
+## Viewing logs
 
-**Deploy gagal di GitHub Actions:**
-- Pastikan semua 5 GitHub Secrets sudah diisi dengan benar
-- Cek tab Actions → klik workflow yang gagal → baca error message-nya
-- Pastikan API GCP sudah diaktifkan di Langkah 1
-
-**Telegram tidak dapat pesan:**
-- Pastikan kamu sudah pernah kirim pesan ke bot (bot tidak bisa mulai duluan)
-- Cek TELEGRAM_TOKEN dan TELEGRAM_CHAT_ID sudah benar
-- Test dengan curl:
-  ```bash
-  curl "https://api.telegram.org/bot<TOKEN>/getMe"
-  ```
-
-**Cloud Function timeout:**
-- Default timeout 300 detik. Jika scraping banyak halaman, pertimbangkan pecah jadi beberapa function
-- Tambahkan `--timeout=540s` di deploy command (max 9 menit untuk Gen2)
-
-**Melihat logs Cloud Function:**
 ```bash
 gcloud functions logs read scraper-harian \
   --region=asia-southeast2 \
@@ -377,19 +312,45 @@ gcloud functions logs read scraper-harian \
 
 ---
 
-## 📚 Teknologi yang Digunakan
+## Common issues
 
-| Teknologi | Versi | Kegunaan |
-|---|---|---|
-| Go | 1.21 | Bahasa pemrograman utama |
-| GCP Cloud Functions Gen2 | - | Serverless compute (menjalankan kode) |
-| GCP Cloud Scheduler | - | Cron job (menjadwalkan eksekusi) |
-| GitHub Actions | - | CI/CD (auto deploy) |
-| Telegram Bot API | - | Notifikasi hasil scraping |
-| functions-framework-go | v1.8 | Framework Cloud Functions untuk Go |
+**`go.sum` missing entries on first run**
+
+```bash
+go mod tidy
+```
+
+**Deploy fails in GitHub Actions**
+
+Check that all 5 secrets are set correctly. Open the failed workflow run in the Actions tab and read the error output.
+
+**No Telegram message received**
+
+Make sure you sent at least one message to the bot before testing — bots cannot initiate conversations. Verify your token and chat ID are correct:
+
+```bash
+curl https://api.telegram.org/bot<TOKEN>/getMe
+```
+
+**Function timeout**
+
+Default is 300 seconds. For heavy scraping jobs, add `--timeout=540s` to the deploy command (Gen2 max is 9 minutes).
 
 ---
 
-## 📄 Lisensi
+## Tech stack
 
-MIT License — bebas digunakan dan dimodifikasi.
+| | |
+|---|---|
+| Language | Go 1.21 |
+| Compute | GCP Cloud Functions Gen2 |
+| Scheduler | GCP Cloud Scheduler |
+| CI/CD | GitHub Actions |
+| Notifications | Telegram Bot API |
+| Framework | functions-framework-go v1.8 |
+
+---
+
+## License
+
+MIT
