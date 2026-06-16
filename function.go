@@ -1,7 +1,6 @@
 package scraper
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
