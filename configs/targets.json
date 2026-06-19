@@ -1,0 +1,40 @@
+{
+  "targets": [
+    {
+      "name": "Kurs Mata Uang USD",
+      "enabled": true,
+      "type": "json",
+      "url": "https://api.frankfurter.app/latest?from=USD&to=IDR,EUR,SGD",
+      "source": "frankfurter.app",
+      "json_fields": {
+        "USD to IDR": "rates.IDR",
+        "USD to EUR": "rates.EUR",
+        "USD to SGD": "rates.SGD"
+      },
+      "json_value_format": "%.2f"
+    },
+    {
+      "name": "Hacker News - Top Stories",
+      "enabled": true,
+      "type": "html",
+      "url": "https://news.ycombinator.com/",
+      "source": "news.ycombinator.com",
+      "item_selector": ".athing",
+      "title_selector": ".titleline > a",
+      "value_selector": ".titleline > a",
+      "value_attr": "href",
+      "max_items": 5
+    },
+    {
+      "name": "Contoh Scraper Produk (nonaktif - edit dulu sebelum dipakai)",
+      "enabled": false,
+      "type": "html",
+      "url": "https://example.com/products",
+      "source": "example.com",
+      "item_selector": ".product-card",
+      "title_selector": ".product-title",
+      "value_selector": ".product-price",
+      "max_items": 10
+    }
+  ]
+}

@@ -1,4 +1,3 @@
-# Deploy otomatis ke GCP Cloud Functions setiap push ke branch main
 name: Deploy to GCP
 
 on:
@@ -10,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout kode
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Go
@@ -21,19 +20,19 @@ jobs:
       - name: Run tests
         run: go test ./...
 
-      # Autentikasi ke GCP menggunakan Service Account key
-      # Simpan JSON key di GitHub Secrets dengan nama GCP_SA_KEY
-      - name: Auth ke GCP
+      - name: Auth to GCP
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Setup gcloud CLI
+      - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      # Deploy Cloud Function
-      # --trigger-http  : function dipanggil via HTTP (oleh Cloud Scheduler)
-      # --allow-unauthenticated : bisa dipanggil tanpa auth GCP (kita pakai secret header sendiri)
+      - name: Enable Firestore
+        run: |
+          gcloud firestore databases create --location=asia-southeast1 \
+            --project=${{ secrets.GCP_PROJECT_ID }} 2>/dev/null || true
+
       - name: Deploy Cloud Function
         run: |
           gcloud functions deploy scraper-harian \
@@ -46,11 +45,9 @@ jobs:
             --allow-unauthenticated \
             --timeout=300s \
             --memory=256MB \
-            --set-env-vars="TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }},TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }},SCHEDULER_SECRET=${{ secrets.SCHEDULER_SECRET }}" \
+            --set-env-vars="TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }},TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }},SCHEDULER_SECRET=${{ secrets.SCHEDULER_SECRET }},GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
             --project=${{ secrets.GCP_PROJECT_ID }}
 
-      # Buat/update Cloud Scheduler job
-      # Jadwal: setiap hari jam 07:00 WIB (00:00 UTC)
       - name: Setup Cloud Scheduler
         run: |
           FUNCTION_URL=$(gcloud functions describe scraper-harian \
@@ -58,7 +55,6 @@ jobs:
             --format='value(serviceConfig.uri)' \
             --project=${{ secrets.GCP_PROJECT_ID }})
 
-          # Coba update dulu, kalau belum ada buat baru
           gcloud scheduler jobs update http scraper-harian-job \
             --location=asia-southeast2 \
             --schedule="0 0 * * *" \
@@ -77,5 +73,20 @@ jobs:
             --time-zone="UTC" \
             --project=${{ secrets.GCP_PROJECT_ID }}
 
-      - name: Deploy sukses!
-        run: echo "✅ Scraper berhasil di-deploy dan dijadwalkan!"
+      - name: Deploy Dashboard to Cloud Run
+        run: |
+          gcloud run deploy scraper-dashboard \
+            --source=. \
+            --dockerfile=cmd/dashboard/Dockerfile \
+            --region=asia-southeast2 \
+            --allow-unauthenticated \
+            --memory=256Mi \
+            --set-env-vars="GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
+            --project=${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Show dashboard URL
+        run: |
+          gcloud run services describe scraper-dashboard \
+            --region=asia-southeast2 \
+            --format='value(status.url)' \
+            --project=${{ secrets.GCP_PROJECT_ID }}
