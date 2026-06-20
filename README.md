@@ -522,4 +522,4 @@ Default is 300 seconds. For heavy scraping jobs, add `--timeout=540s` to the dep
 
 ## License
 
-MIT
+MIT License © 2026 Ryan Dwi Wicaksono
